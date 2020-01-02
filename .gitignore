@@ -1,0 +1,10 @@
+# IDE depending folder and files
+.mypy_cache
+.projectile
+__pycache__
+
+# generated recipes and container images
+Dockerfile
+*.Dockerfile
+*.def
+*.sif
