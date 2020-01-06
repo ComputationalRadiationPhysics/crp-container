@@ -5,8 +5,9 @@ import generator as ap_gn
 
 import hpccm
 from hpccm.primitives import raw, baseimage, shell, environment, label
+from hpccm.templates.git import git
 
-version = 1.0
+version = 1.1
 
 def main():
     print(recipe())
@@ -29,6 +30,8 @@ def recipe() -> str:
         print('adding the alpaka dependencies layer failed', file=sys.stderr)
         exit(1)
 
+    install_alpaka(stage)
+
     build_jupyter_kernel(stage)
 
     # baseimage support nothing  else than dockerhub
@@ -38,7 +41,24 @@ def recipe() -> str:
 
     return recipe
 
-def build_jupyter_kernel(stage):
+def install_alpaka(stage: hpccm.Stage):
+    """Install alpaka 0.4 to /usr/local/include
+
+    :param stage: the hpccm stage
+    :type stage: hpccm.Stage
+
+    """
+    cm = []
+    git_conf = git()
+    cm.append(git_conf.clone_step(repository='https://github.com/ComputationalRadiationPhysics/alpaka',
+                             branch='release-0.4.0',
+                             path='/opt'))
+    cm.append('cp -r /opt/alpaka/include/alpaka /usr/include/')
+    cm.append('rm -rf /opt/alpaka')
+    stage += shell(commands=cm)
+
+
+def build_jupyter_kernel(stage : hpccm.Stage):
     """Add the different Alpaka kernel versions to Jupyter Notebook.
 
     :param stage: the hpccm stage
@@ -60,11 +80,11 @@ def build_jupyter_kernel(stage):
     kernel_register.append('cd -')
     stage += shell(commands=kernel_register)
 
-def gen_jupyter_kernel(std, acc):
+def gen_jupyter_kernel(std : int, acc : str):
     """Create the different Alpaka kernel json's.
 
     :param std: C++ Standard: 11, 14 or 17
-    :type std: str
+    :type std: int
     :param acc: If CUDA mode or not: "" or "-cuda"
     :type acc: str
 
