@@ -1,10 +1,16 @@
-# IDE depending folder and files
+# temporary files
 .mypy_cache
 .projectile
 __pycache__
+.ipynb_checkpoints
 
 # generated recipes and container images
 Dockerfile
 *.Dockerfile
 *.def
 *.sif
+
+# Jupyter Notebooks
+*.ipynb
+
+Cling-Alpaka/.sregistry/build.log

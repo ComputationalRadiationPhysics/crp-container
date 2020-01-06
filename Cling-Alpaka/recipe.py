@@ -4,12 +4,25 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'Alpaka'))
 import generator as ap_gn
 
 import hpccm
-from hpccm.primitives import raw, baseimage, shell
+from hpccm.primitives import raw, baseimage, shell, environment, label
+
+version = 1.0
 
 def main():
+    print(recipe())
+
+def recipe() -> str:
+    """Generate the recipe
+
+    :returns: singularity recipe
+    :rtype: str
+
+    """
     hpccm.config.set_container_format('singularity')
     hpccm.config.set_singularity_version('3.3')
     stage = hpccm.Stage()
+    stage += label(metadata={'CLING ALPAKA VERSION' : str(version)})
+    stage += environment(variables={'CLING_ALPAKA_VERSION' : version})
 
     # the baseimage of xeus-cling-cuda is Ubuntu 16.04 with CUDA 8
     if not ap_gn.add_alpaka_dep_layer(stage, '16.04', True, []):
@@ -23,7 +36,7 @@ def main():
     recipe = stage.__str__()
     recipe = 'Bootstrap: library\nFrom: sehrig/default/xeus-cling-cuda-cxx:2.2\n\n' + recipe
 
-    print(recipe)
+    return recipe
 
 def build_jupyter_kernel(stage):
     """Add the different Alpaka kernel versions to Jupyter Notebook.
