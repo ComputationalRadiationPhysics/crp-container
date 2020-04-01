@@ -58,8 +58,8 @@ for recipe in $recipes ; do
     if [ $break_chain -eq 1 ] || [ ! -f ".cache/${recipe}" ] || [ $cmp_ret -ne 0 ]; then
 	break_chain=1
 	if [ $container == "docker" ]; then
-	    echo "docker build -f $recipe ${recipe%.*} |& tee d_${recipe%.*}.log"
-	    docker build -f $recipe ${recipe%.*} |& tee d_${recipe%.*}.log
+	    echo "docker build -f $recipe . -t ${recipe%.*} |& tee d_${recipe%.*}.log"
+	    docker build -f $recipe . -t ${recipe%.*} |& tee d_${recipe%.*}.log
 	else
 	    echo "singularity build --fakeroot -F ${ALPAKA_CI_BUILD_DIR} ${recipe%.*}${container_extension} $recipe |& tee s_${recipe%.*}.log"
 	    singularity build --fakeroot -F ${ALPAKA_CI_BUILD_DIR} ${recipe%.*}${container_extension} $recipe |& tee s_${recipe%.*}.log

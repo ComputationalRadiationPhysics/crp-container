@@ -1,4 +1,4 @@
-import argparse, os
+import argparse, os, json
 from typing import Tuple, List, Dict, Union
 
 import hpccm
@@ -7,7 +7,8 @@ from hpccm.building_blocks.packages import packages
 from hpccm.templates.git import git
 
 images = {'ubuntu16.04' : 'ubuntu:xenial',
-          'ubuntu18.04' : 'ubuntu:bionic'}
+          'ubuntu18.04' : 'ubuntu:bionic',
+          'ubuntu18.04-cuda10.2' : 'nvidia/cuda:10.2-devel-ubuntu18.04'}
 
 spack_install='/opt/spack/bin/spack install -y -n {0} target=x86_64'
 
@@ -31,11 +32,44 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--container', type=str, default='singularity',
                         choices=['docker', 'singularity'],
                         help='generate receipt for docker or singularity (default: singularity)')
-    parser.add_argument('-i',  type=str, default='ubuntu18.04',
-                        choices=images.keys(),
-                        help='Choice the base image. (default: ubuntu18.04)')
+    parser.add_argument('--json',  type=str,
+                        help='Path to the config json')
+
     args = parser.parse_args()
     return args
+
+def parse_json(path : str):
+    """Check if the path to the .json file is valid and parse the file.
+
+    :param path: Path to the json file
+    :type path: str
+    :returns: config as json object
+    :rtype: Dict
+
+    """
+    if not os.path.isfile(path):
+        print(path + " is invalid")
+        exit(1)
+
+    with open(path) as json_file:
+        config = json.load(json_file)
+        json_file.close()
+
+    return config
+
+def check_image(image : str):
+    """Check if image is supported, means stored in images. If it is not
+supported, exit the application.
+
+    :param image: Name of the image
+    :type image: str
+
+    """
+    if not image in images.keys():
+        print("not supported image: " + image + '\n supported images:')
+        for i in images.keys():
+            print(i)
+        exit(1)
 
 def prefix_image(image_name : str) -> str:
     """Prefix the image name with a continues increasing number to get a unique name.
@@ -127,6 +161,7 @@ generates recipe file.
         # if install a specific version, add a @ -> e.g. llvm@9.0
         spack_packages.append(spack_install.format(spack_package + ("@" if v != "" else "")  + v))
 
+    spack_packages.append('spack clean --all')
     stage += shell(commands=spack_packages)
 
     image_stack.append((prefix_image(stage_name), stage))
@@ -139,64 +174,48 @@ image of image_stack. The stage do some cleanups and set the environment.
     stage = get_previos_image()
     stage += environment(variables={'PATH': '/opt/spack/bin:$PATH',
                                     'FORCE_UNSAFE_CONFIGURE': '1'})
-    stage += shell(commands=['rm -rf /usr/local/cuda',
-                             'spack clean --all'])
+    stage += shell(commands=['spack clean --all'])
 
     image_stack.append((prefix_image('final_image'), stage))
 
-def main(args):
+def create_recipe(container, baseimage, build_dir, packages):
     global container_typ
-    container_typ=args.container
+    container_typ=container
     hpccm.config.set_container_format(container_typ)
     if container_typ == 'singularity':
         hpccm.config.set_singularity_version('3.3')
 
-    base_stage(args.i)
-    incremental_stage(stage_name='cmake_image',
-                      spack_package='cmake',
-                      versions=['3.16.5'])
-    incremental_stage(stage_name='gcc_image',
-                      spack_package='gcc',
-                      versions=['', # install latest version
-                                '5.5.0',
-                                '6.4.0',
-                                '7.3.0',
-                                '8.1.0',
-                                '9.1.0'])
-    incremental_stage(stage_name='llvm_image',
-                      spack_package='llvm',
-                      versions=['',
-                                '5.0.2',
-                                '6.0.1',
-                                '7.1.0',
-                                '8.0.0',
-                                '9.0.1'])
-    incremental_stage(stage_name='cuda_image',
-                      spack_package='cuda',
-                      versions=['',
-                                '9.0.176',
-                                '9.1.85',
-                                '9.2.88',
-                                '10.0.130',
-                                '10.1.243'])
-    incremental_stage(stage_name='boost_image',
-                      spack_package='boost',
-                      versions=['',
-                                '1.67.0',
-                                '1.69.0',
-                                '1.71.0'])
-    finale_stage()
+    base_stage(baseimage)
+    for package in packages:
+        incremental_stage(stage_name=package['stage_name'],
+                          spack_package=package['package_name'],
+                          versions=package['versions'])
+    # note necessary at the moment
+    #finale_stage()
 
-    if not os.path.exists('./build'):
-        os.makedirs('./build')
-        os.symlink(os.getcwd() + '/build.sh', os.getcwd() + '/build/build.sh')
+    build_dir = os.path.abspath(build_dir)
 
-    file_suffix = '.def' if container_typ == 'singularity' else 'Dockerfile'
+    if not os.path.exists(build_dir):
+        os.makedirs(build_dir)
+        os.symlink(os.getcwd() + '/build.sh', build_dir + '/build.sh')
+
+    file_suffix = '.def' if container_typ == 'singularity' else '.Dockerfile'
 
     for image in image_stack:
-        with open('./build/' + image[0] + file_suffix, 'w') as filehandle:
+        with open(build_dir + '/' + image[0] + file_suffix, 'w') as filehandle:
             filehandle.write(image[1].__str__())
 
 if __name__ == "__main__":
     args = parse_args()
-    main(args)
+    if not args.json:
+        print("no json file set")
+        exit(1)
+
+    config = parse_json(args.json)
+
+    check_image(config['image'])
+
+    create_recipe(container=args.container,
+                  baseimage=config['image'],
+                  build_dir=config['build_dir'],
+                  packages=config['packages'])
