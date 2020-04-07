@@ -17,6 +17,7 @@ The stages of a container are managed via json configuration file:
 {
     "image" : "ubuntu18.04-cuda10.2",
     "build_dir" : "./build_gcc",
+	"final_stage_name" : "alpaka_gcc",
     "packages" : [
 	{"stage_name" : "cmake",
 	 "package_name" : "cmake",
@@ -83,8 +84,49 @@ The minimum json configuration is:
 
 * **image:** Name of the Docker baseimage (supported are: `ubuntu16.04`, `ubuntu18.04`, `ubuntu18.04-cuda10.2`)
 * **build_dir:** Folder, where the recipes are stored
+* **final_stage_name:** It is a optional attribute. If it is set, the last image of the image stack is renamed to the attribute value.
 * **stage_name:** Name of the recipe for the stage
 * **package_name:** Name of a Spack package
 * **versions:** Versions, which should installed (empty string means default build)
 
 In the folder `productive-config` are configurations, which are designed for the Alpaka CI. The folder `test-config` contains configurations for test container, which can be build fast.
+
+# Test
+
+All tests are done with the configurations in `productive-config`, `CMake 3.16.5`, `Boost 1.71.0` and Alpaka develop branch at commit:
+
+```
+commit cb87c59bb4f27eed43bc643693eb3c1055b73985
+Author: René Widera <r.widera@hzdr.de>
+Date:   Mon Mar 30 12:49:04 2020 +0200
+
+    CMake search rocrand and hiprand (#948)
+
+    search for rocrand and hiprand
+
+    Co-authored-by: Matthias Werner <Matthias.Werner1@tu-dresden.de>
+
+    Co-authored-by: Matthias Werner <Matthias.Werner1@tu-dresden.de>
+
+```
+
+|     |  Container  | Recpie name        | Compiler version                             | CMake Arguments                                                               | Notes |
+|-----|-------------|--------------------|----------------------------------------------|-------------------------------------------------------------------------------|-------|
+| [x] |    Docker   | t1_gcc.json        | GCC 8.1.0                                    | -DALPAKA_ACC_GPU_CUDA_ENABLE=OFF                                              |       |
+| [x] | Singularity | t1_gcc.json        | GCC 8.1.0                                    | -DALPAKA_ACC_GPU_CUDA_ENABLE=OFF                                              |       |
+| [x] |    Docker   | t2_clang.json      | Clang 8.0.0                                  | -DALPAKA_ACC_GPU_CUDA_ENABLE=OFF                                              |       |
+| [x] | Singularity | t2_clang.json      | Clang 8.0.0                                  | -DALPAKA_ACC_GPU_CUDA_ENABLE=OFF                                              |       |
+| [x] |    Docker   | t3_cuda.json       | CUDA 10.1.243                                |                                                                               |       |
+| [x] | Singularity | t3_cuda.json       | CUDA 10.1.243                                | -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs                              |       |
+| [ ] |    Docker   | t4_cuda-clang.json | Clang 8.0.0 as CUDA-Compiler (CUDA 10.0.130) | -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs -DALPAKA_CUDA_COMPILER=clang | [1]   |
+| [ ] | Singularity | t4_cuda-clang.json | Clang 8.0.0 as CUDA-Compiler (CUDA 10.0.130) | -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs -DALPAKA_CUDA_COMPILER=clang | [2]   |
+
+[1]
+
+* build failed with
+  alpaka/include/alpaka/mem/buf/BufUniformCudaHipRt.hpp:404:50: error: implicit conversion changes signedness: 'const int' to 'std::size_t' (aka 'unsigned long') [-Werror,-Wsign-conversion]: std::size_t pitchBytes = widthBytes;
+* if fixed, `memView` failed
+
+[2]
+
+* same problems like docker version, just `queue` also failed

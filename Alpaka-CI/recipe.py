@@ -131,7 +131,8 @@ Packages via apt and install Spack. The stage will be append to image_stack.
                          branch='master', path='/opt'),
         '/opt/spack/bin/spack bootstrap',
         'ln -s /opt/spack/share/spack/setup-env.sh /etc/profile.d/spack.sh',
-        'ln -s /opt/spack/share/spack/spack-completion.bash /etc/profile.d'])
+        'ln -s /opt/spack/share/spack/spack-completion.bash /etc/profile.d',
+        '/opt/spack/bin/spack clean -a'])
     stage += environment(variables={'PATH': '/opt/spack/bin:$PATH',
                                     'FORCE_UNSAFE_CONFIGURE': '1'})
 
@@ -178,7 +179,22 @@ image of image_stack. The stage do some cleanups and set the environment.
 
     image_stack.append((prefix_image('final_image'), stage))
 
-def create_recipe(container, baseimage, build_dir, packages):
+def create_recipes(container, baseimage, build_dir, packages, final_stage_name=''):
+    """Create the container recipes.
+
+    :param container: docker or singularity
+    :type container: str
+    :param baseimage: Name of the Docker base image
+    :type baseimage: str
+    :param build_dir: Path to the folder, where the recipe files are stored
+    :type build_dir: str
+    :param packages: List of spack packages with different versions -> see json
+format
+    :type packages: [{str : str|[str]}]
+    :param final_stage_name: name of the last container image
+    :type final_stage_name: str
+
+    """
     global container_typ
     container_typ=container
     hpccm.config.set_container_format(container_typ)
@@ -205,6 +221,10 @@ def create_recipe(container, baseimage, build_dir, packages):
         with open(build_dir + '/' + image[0] + file_suffix, 'w') as filehandle:
             filehandle.write(image[1].__str__())
 
+    if final_stage_name != '':
+        with open(build_dir + '/' + 'final_stage_name.txt', 'w') as filehandle:
+            filehandle.write(final_stage_name)
+
 if __name__ == "__main__":
     args = parse_args()
     if not args.json:
@@ -215,7 +235,12 @@ if __name__ == "__main__":
 
     check_image(config['image'])
 
-    create_recipe(container=args.container,
-                  baseimage=config['image'],
-                  build_dir=config['build_dir'],
-                  packages=config['packages'])
+    final_stage_name=''
+    if 'final_stage_name' in config:
+        final_stage_name = config['final_stage_name']
+
+    create_recipes(container=args.container,
+                   baseimage=config['image'],
+                   build_dir=config['build_dir'],
+                   packages=config['packages'],
+                   final_stage_name=final_stage_name)

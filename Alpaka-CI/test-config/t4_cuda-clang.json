@@ -1,0 +1,23 @@
+{
+    "image" : "ubuntu18.04-cuda10.2",
+    "build_dir" : "./build_t4_cuda_clang",
+    "final_stage_name" : "t4_cuda-clang",
+    "packages" : [
+	{"stage_name" : "cmake",
+	 "package_name" : "cmake",
+	 "versions" : ["3.16.5"]
+	},
+	{"stage_name" : "boost",
+	 "package_name" : "boost",
+	 "versions" : ["1.71.0"]
+	},
+	{"stage_name" : "llvm",
+	 "package_name" : "llvm",
+	 "versions" : ["8.0.0"]
+	},
+	{"stage_name" : "cuda",
+	 "package_name" : "cuda",
+	 "versions" : ["10.0.130"]
+	}
+    ]
+}
