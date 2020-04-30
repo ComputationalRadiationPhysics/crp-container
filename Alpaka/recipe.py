@@ -4,7 +4,7 @@ from typing import Tuple, List, Dict, Union
 import generator as gn
 
 import hpccm
-from hpccm.primitives import baseimage
+from hpccm.primitives import baseimage, shell
 
 images = {'ubuntu16.04' : 'ubuntu:xenial',
           'ubuntu18.04' : 'ubuntu:bionic',
@@ -31,6 +31,9 @@ def main():
     parser.add_argument('-c',  metavar='', nargs='+', type=str,
                         help='Install extra compiler. Supported are GCC and Clang. '
                         'E.g -c gcc:8 clang:7.0 clang:8')
+    parser.add_argument('--alpaka', action='store_true',
+                        help='Install Alpaka to /usr/local')
+
 
     args = parser.parse_args()
 
@@ -47,9 +50,11 @@ def main():
     stage = hpccm.Stage()
     stage += baseimage(image=images[args.i])
 
-    if not gn.add_alpaka_dep_layer(stage, ubuntu_version, cuda_support ,args.c):
+    if not gn.add_alpaka_dep_layer(stage, ubuntu_version, cuda_support ,args.c, args.alpaka):
         print('add alpaka dependencies layer failed', file=sys.stderr)
         exit(1)
+
+    install_ninja(stage)
 
     print(stage)
 
@@ -84,6 +89,20 @@ def check_compiler(compiler_list : List[str]):
         if not found:
             print(ch + ' is not a supported compiler', file=sys.stderr)
             exit(1)
+
+def install_ninja(stage : hpccm.Stage):
+    """Install ninja build system
+
+    :param stage: hpccm stage
+    :type stage: hpccm.Stage
+
+    """
+    stage += shell(commands=['cd /opt',
+                             'wget https://github.com/ninja-build/ninja/releases/download/v1.9.0/ninja-linux.zip',
+                             'unzip ninja-linux.zip',
+                             'mv ninja /usr/local/bin/',
+                             'rm ninja-linux.zip',
+                             'cd -'])
 
 if __name__ == '__main__':
     main()

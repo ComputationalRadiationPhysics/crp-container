@@ -7,10 +7,12 @@ from hpccm.building_blocks.packages import packages
 from hpccm.building_blocks.cmake import cmake
 from hpccm.building_blocks.gnu import gnu
 from hpccm.building_blocks.llvm import llvm
-
+from hpccm.templates.git import git
+from hpccm.templates.CMakeBuild import CMakeBuild
 
 def add_alpaka_dep_layer(stage : hpccm.Stage, ubuntu_version : str,
-                         cuda_support : bool, extra_compiler : List[str]) -> bool:
+                         cuda_support : bool, extra_compiler : List[str],
+                         alpaka=False) -> bool:
     """Add all dependencies to an hpccm stage that are necessary to build and run Alpaka.
 
     :param stage: At least a baseimage
@@ -21,6 +23,8 @@ def add_alpaka_dep_layer(stage : hpccm.Stage, ubuntu_version : str,
     :type cuda_support: bool
     :param extra_compiler: List of compilers, which are installed additional to the system compiler. Supported are: gcc:[5-9], clang:[5.0-7.0, 8-9]
     :type extra_compiler: str
+    :param alpaka: install alpaka in /usr/local
+    :type alpaka: bool
     :returns: Returns True if function was successful
     :rtype: bool
 
@@ -31,7 +35,7 @@ def add_alpaka_dep_layer(stage : hpccm.Stage, ubuntu_version : str,
         return False
 
     apt_package_list = ['gcc', 'g++', 'make', 'software-properties-common',
-                        'wget', 'libc6-dev', 'libomp-dev']
+                        'wget', 'libc6-dev', 'libomp-dev', 'unzip', 'git']
 
     if ubuntu_version == '16.04':
         apt_package_list.append('gnupg-agent')
@@ -63,6 +67,22 @@ def add_alpaka_dep_layer(stage : hpccm.Stage, ubuntu_version : str,
             variables={'LIBRARY_PATH': '$LIBRARY_PATH:/usr/local/cuda/lib64/stubs'})
         stage += environment(
             variables={'CMAKE_PREFIX_PATH': '/usr/local/cuda/lib64/stubs/'})
+
+    if alpaka:
+        git_alpaka = git()
+        cmake_alpaka = CMakeBuild()
+        alpaka_commands = []
+        alpaka_commands.append(git_alpaka.clone_step(
+            repository='https://github.com/alpaka-group/alpaka.git',
+            path='/opt'))
+        alpaka_commands.append(cmake_alpaka.configure_step(build_directory='build',
+                                                           directory='/opt/alpaka',
+                                                           opts=['-Dalpaka_BUILD_EXAMPLES=OFF',
+                                                                 '-DBUILD_TESTING=OFF']))
+        alpaka_commands.append(cmake_alpaka.build_step(target='install'))
+        alpaka_commands.append('rm -rf /opt/alpaka')
+
+        stage += shell(commands=alpaka_commands)
 
     return True
 
